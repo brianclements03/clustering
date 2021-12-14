@@ -50,13 +50,25 @@ def new_zillow_data():
     # Create SQL query.
 
     # I checked, and the following query should and better return exactly 52,442 rows
-    sql_query = 'SELECT \
-            bedroomcnt, bathroomcnt, calculatedfinishedsquarefeet, taxvaluedollarcnt, yearbuilt, taxamount, fips\
-            FROM zillow.properties_2017 AS zprop\
-            JOIN zillow.predictions_2017 as zpred USING (parcelid)\
-            JOIN zillow.propertylandusetype AS plt USING (propertylandusetypeid)\
-            WHERE plt.propertylandusetypeid = 261 OR 279 AND zpred.transactiondate < 2018-01-01;'
+    sql_query = "SELECT *  FROM zillow.properties_2017 AS zprop \
+    LEFT JOIN zillow.airconditioningtype AS actype USING (airconditioningtypeid) \
+    LEFT JOIN zillow.architecturalstyletype AS archtype USING (architecturalstyletypeid) \
+    LEFT JOIN zillow.buildingclasstype AS buildtype USING (buildingclasstypeid) \
+    LEFT JOIN zillow.heatingorsystemtype AS heattype USING (heatingorsystemtypeid) \
+    JOIN \
+        ( \
+        SELECT parcelid, logerror, max(transactiondate) AS maxdate \
+        FROM zillow.predictions_2017 \
+        GROUP BY parcelid, logerror \
+        ) \
+        as zpred USING (parcelid) \
+    LEFT JOIN zillow.propertylandusetype AS plt USING (propertylandusetypeid) \
+    LEFT JOIN zillow.storytype AS  stories USING (storytypeid) \
+    LEFT JOIN zillow.typeconstructiontype AS contype USING (typeconstructiontypeid) \
+    WHERE plt.propertylandusetypeid = 261 OR 279 AND zpred.maxdate < 2018-01-01 \
+    AND zprop.latitude != null AND zprop.longitude != null; \
 
+"
     # Read in DataFrame from Codeup db.
     df = pd.read_sql(sql_query, get_connection('zillow'))
     
