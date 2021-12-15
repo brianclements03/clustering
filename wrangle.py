@@ -67,7 +67,6 @@ def new_zillow_data():
     LEFT JOIN zillow.typeconstructiontype AS contype USING (typeconstructiontypeid) \
     WHERE plt.propertylandusetypeid = 261 OR 279 AND zpred.maxdate < 2018-01-01 \
     AND zprop.latitude != null AND zprop.longitude != null; \
-
 "
     # Read in DataFrame from Codeup db.
     df = pd.read_sql(sql_query, get_connection('zillow'))
