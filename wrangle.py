@@ -1,15 +1,56 @@
+import pandas as pd
+import numpy as np
+import os
+from env import host, user, password
+from sklearn.model_selection import train_test_split
+from sklearn.impute import SimpleImputer
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+from pydataset import data
+import statistics
 import seaborn as sns
-
 import env
-
-
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.impute import SimpleImputer
+import scipy
+from scipy import stats
 
-sql = """
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.tree import export_graphviz
+from sklearn.metrics import classification_report
+from sklearn.metrics import confusion_matrix
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.linear_model import LogisticRegression
+import sklearn.linear_model
+import sklearn.preprocessing
+import warnings
+warnings.filterwarnings("ignore")
+# importing my personal wrangle module
+import wrangle
+
+
+def get_connection(db, user=user, host=host, password=password):
+    '''
+    This function uses my info from my env file to
+    create a connection url to access the Codeup db.
+    It takes in a string name of a database as an argument.
+    '''
+    return f'mysql+pymysql://{user}:{password}@{host}/{db}'
+    
+    
+    
+def new_zillow_data():
+    '''
+    This function reads the zillow data from the Codeup db into a df,
+    write it to a csv file, and returns the df.
+    '''
+    # Create SQL query.
+
+    # I checked, and the following query should and better return exactly 52,442 rows
+    sql_query = """
 SELECT prop.*, 
        pred.logerror, 
        pred.transactiondate, 
@@ -38,37 +79,231 @@ FROM   properties_2017 prop
 WHERE  prop.latitude IS NOT NULL 
        AND prop.longitude IS NOT NULL AND transactiondate <= '2017-12-31' 
 """
-
-def get_db_url(database):
-    from env import host, user, password
-    url = f'mysql+pymysql://{user}:{password}@{host}/{database}'
-    return url
-
-
-# acquire zillow data using the query
-def get_zillow(sql):
-    url = get_db_url('zillow')
-    zillow_df = pd.read_sql(sql, url, index_col='id')
-    return zillow_df
-
-
-def handle_missing_values(df, prop_required_column = .5, prop_required_row = .70):
-	#function that will drop rows or columns based on the percent of values that are missing:\
-	#handle_missing_values(df, prop_required_column, prop_required_row
-    threshold = int(round(prop_required_column*len(df.index),0))
-    df.dropna(axis=1, thresh=threshold, inplace=True)
-    threshold = int(round(prop_required_row*len(df.columns),0))
-    df.dropna(axis=0, thresh=threshold, inplace=True)
+    # Read in DataFrame from Codeup db.
+    df = pd.read_sql(sql_query, get_connection('zillow'))
+    
     return df
 
 
+
+def get_zillow_data():
+    '''
+    This function reads in the zillow data from Codeup database, writes data to
+    a csv file if a local file does not exist, and returns a df.
+    '''
+    if os.path.isfile('zillow_df.csv'):
+        
+        # If csv file exists, read in data from csv file.
+        df = pd.read_csv('zillow_df.csv', index_col=0)
+        
+    else:
+        
+        # Read fresh data from db into a DataFrame.
+        df = new_zillow_data()
+        
+        # Write DataFrame to a csv file.
+        df.to_csv('zillow_df.csv')
+        
+    return df
+
+
+def missing_values_col_wise(df):
+    '''
+    Function that takes in a df and returns a list of attributes with the number and percent
+    of missing values for that attribute.
+    '''
+    new_df = pd.DataFrame(df.isnull().sum())
+    new_df['number_missing'] = df.isnull().sum()
+    new_df['percent_missing'] = df.isnull().sum()/len(df)*100
+    new_df.drop([0], axis=1, inplace=True)
+    return new_df
+
+
+def missing_values_row_wise(df):
+    '''
+    Function that takes in a df and returns a list of rows with the number and percent
+    of missing values.
+    '''
+    new_df = pd.DataFrame(df.isnull().sum(axis =1).value_counts())
+    new_df['percent_missing'] = new_df.index/len(df.columns)*100
+    new_df['num_of_rows'] = df.isnull().sum(axis =1).value_counts()
+    new_df.drop([0], axis=1, inplace=True)
+    new_df.index.rename('num_cols_missing_from_row', inplace = True)
+    return new_df
+
+def handle_missing_values(df, prop_required_row, prop_required_col):
+    ''' 
+    function which takes in a dataframe, proportion of non-null rows and columns
+    (respectively) required to prevent the columns and rows being dropped:
+    '''
+    
+    #drop columns with nulls
+    threshold = int(prop_required_col * len(df.index)) # Require that many non-NA values.
+    df.dropna(axis = 1, thresh = threshold, inplace = True)
+    
+    #drop rows with nulls
+    threshold = int(prop_required_row * len(df.columns)) # Require that many non-NA values.
+    df.dropna(axis = 0, thresh = threshold, inplace = True)
+    
+    
+    return df
+
+
+def remove_outliers(df, k, col_list):
+    ''' 
+    
+    Here, we remove outliers from a list of columns in a dataframe and return that dataframe
+    
+    '''
+    
+    # My MVP will rely on the same outlier handling across rows; maybe I will get classier
+    # about it in a later version
+    
+    # need a column list, either in or outside the function
+    for col in col_list:
+
+        q1, q3 = df[col].quantile([.25, .75])  # get quartiles
+        
+        iqr = q3 - q1   # calculate interquartile range
+        
+        upper_bound = q3 + k * iqr   # get upper bound
+        lower_bound = q1 - k * iqr   # get lower bound
+
+        # return dataframe without outliers
+        
+        df = df[(df[col] > lower_bound) & (df[col] < upper_bound)]
+        
+    return df
+
+
+def clean_and_prep_data(df):
+    '''
+    This function will do some light cleaning and minimal other manipulation of the zillow data set, 
+    to get it ready to be split in the next step.
+    
+    '''
+        # renaming columns for ease of reading
+    df = df.rename(columns={'bedroomcnt':'bedrooms','bathroomcnt':'bathrooms'
+    ,'buildingqualitytypeid':'condition','calculatedfinishedsquarefeet':'sq_ft'
+    ,'fullbathcnt':'full_baths','lotsizesquarefeet':'lot_size', 'rawcensustractandblock':'census_tract'
+    ,'regionidcity':'city_id','regionidzip':'zip','roomcnt':'rooms','structuretaxvaluedollarcnt':'structure_value'
+    ,'taxvaluedollarcnt':'tax_value','taxamount':'tax_amount','fips':'county'
+    ,'assessmentyear':'year_assessed','landtaxvaluedollarcnt':'land_value'})
+
+
+    cols = ['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'tax_amount']
+    #removing outliers--see the function elsewhere in this file
+    df = remove_outliers(df, 1.5, cols)
+    # accessing datetime info so as to create an 'age' variable
+    from datetime import date
+    df.yearbuilt =  df.yearbuilt.astype(int)
+    year = date.today().year
+    df['age'] = year - df.yearbuilt
+    # making a feature called bathrooms_per_sq_ft
+    df['sq_ft_per_bathroom'] = df.sq_ft / df.bathrooms
+    # dropping the 'yearbuilt' column now that i have the age
+    df['sq_ft_per_bedroom'] = df.sq_ft / df.bedrooms
+    df = df.drop(columns=['yearbuilt'])
+# Missing values: there were only something around 200 missing values in the data; thus, I have dropped them 
+#  due to their relative scarcity.  By removing outliers, several thousand rows were dropped.
+    return df
+
+
+
+def split_zillow(df):
+    '''
+    Takes in the zillow dataframe and returns train, validate, test subset dataframes
+    '''
+    # SPLIT
+    # Test set is .2 of original dataframe
+    train, test = train_test_split(df, test_size = .2, random_state=123)#, stratify= df.tax_value)
+    # The remainder is here divided .7 to train and .3 to validate
+    train, validate = train_test_split(train, test_size=.3, random_state=123)#, stratify= train.tax_value)
+
+    # return train, validate, test
+
+    X_train = train.drop(columns=['tax_value'])
+    y_train = pd.DataFrame(train.tax_value, columns=['tax_value'])
+
+    X_validate = validate.drop(columns=['tax_value'])
+    y_validate = pd.DataFrame(validate.tax_value, columns=['tax_value'])
+
+    X_test = test.drop(columns=['tax_value'])
+    y_test = pd.DataFrame(test.tax_value, columns=['tax_value'])
+
+    return train, validate, test, X_train, y_train, X_validate, y_validate, X_test, y_test
+
+
+def encode_zillow(df):
+    '''
+    This is encoding a few of the zillow columns for later modelling; it drops the original column 
+    once it has been encoded
+    
+    '''
+    # ordinal encoder? sklearn.OrdinalEncoder
+
+    cols_to_dummy = df['county']
+    dummy_df = pd.get_dummies(cols_to_dummy, dummy_na=False, drop_first=False)
+    df = pd.concat([df, dummy_df], axis = 1)
+    #df.columns = df.columns.astype(str)
+    # I ended up renaming counties in an above function; the other encoded cols are renamed here:
+    #df.rename(columns={'6037.0':'LA', '6059.0': 'Orange', '6111.0':'Ventura'}, inplace=True)
+    # I have commented out the following code bc i think i might want to have the county column for exploration
+    #df = df.drop(columns='county')
+    return df
+
+
+
+def scale_zillow(train, validate, test):
+    '''
+    Takes in the zillow dataframe and returns SCALED train, validate, test subset dataframes
+    '''
+    # SCALE
+    # 1. create the object
+    scaler = sklearn.preprocessing.MinMaxScaler()
+    # 2. fit the object
+    scaler.fit(train[['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom',
+       'LA', 'Orange', 'Ventura']])
+    # 3. use the object. Scale all columns for now
+    train_scaled =  scaler.transform(train[['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom',
+       'LA', 'Orange', 'Ventura']])
+    train_scaled = pd.DataFrame(train_scaled, columns=['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom',
+       'LA', 'Orange', 'Ventura'])
+
+    validate_scaled =  scaler.transform(validate[['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom',
+       'LA', 'Orange', 'Ventura']])
+    validate_scaled = pd.DataFrame(validate_scaled, columns=['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom',
+       'LA', 'Orange', 'Ventura'])
+
+    test_scaled =  scaler.transform(test[['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom',
+       'LA', 'Orange', 'Ventura']])
+    test_scaled = pd.DataFrame(test_scaled, columns=['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom',
+       'LA', 'Orange', 'Ventura'])
+
+    # 4. Divide into x/y
+
+    X_train_scaled = train_scaled.drop(columns=['tax_value'])
+    y_train_scaled = pd.DataFrame(train_scaled.tax_value, columns=['tax_value'])
+
+    X_validate_scaled = validate_scaled.drop(columns=['tax_value'])
+    y_validate_scaled = pd.DataFrame(validate_scaled.tax_value, columns=['tax_value'])
+
+    X_test_scaled = test_scaled.drop(columns=['tax_value'])
+    y_test_scaled = pd.DataFrame(test_scaled.tax_value, columns=['tax_value'])
+
+    return train_scaled, X_train_scaled, y_train_scaled, validate_scaled, X_validate_scaled, y_validate_scaled, test_scaled, X_test_scaled, y_test_scaled
+
+
+
 def remove_columns(df, cols_to_remove):  
-	#remove columns not needed
     df = df.drop(columns=cols_to_remove)
     return df
 
 def wrangle_zillow():
-    df = pd.read_csv('zillow.csv')
+    '''
+    This function reads in the zillow_df.csv file and wrangles it.
+    '''
+    df = pd.read_csv('zillow_df.csv')
     
     # Restrict df to only properties that meet single unit use criteria
     single_use = [261, 262, 263, 264, 266, 268, 273, 276, 279]
@@ -79,80 +314,38 @@ def wrangle_zillow():
             & (df.calculatedfinishedsquarefeet>350)]
 
     # Handle missing values i.e. drop columns and rows based on a threshold
-    df = handle_missing_values(df)
+    df = handle_missing_values(df,.7,.5)
     
     # Add column for counties
     df['county'] = np.where(df.fips == 6037, 'Los_Angeles',
                            np.where(df.fips == 6059, 'Orange', 
                                    'Ventura'))    
     # drop columns not needed
-    df = remove_columns(df, ['id',
-       'calculatedbathnbr', 'finishedsquarefeet12', 'fullbathcnt', 'heatingorsystemtypeid'
-       ,'propertycountylandusecode', 'propertylandusetypeid','propertyzoningdesc', 
-        'censustractandblock', 'propertylandusedesc','heatingorsystemdesc','unitcnt'
-                            ,'buildingqualitytypeid'])
+    df = remove_columns(df, ['Unnamed: 0','id',
+       'calculatedbathnbr', 'finishedsquarefeet12', 'heatingorsystemtypeid'
+       ,'propertycountylandusecode', 'propertylandusetypeid','propertyzoningdesc'
+       ,'regionidcounty', 
+        'censustractandblock', 'propertylandusedesc', 'unitcnt', 'fips'])
+
+
+#     replace nulls in unitcnt with 1
+#     df.unitcnt.fillna(1, inplace = True)
+    
+    # assume that since this is Southern CA, null means 'None' for heating system
+#     df.heatingorsystemdesc.fillna('None', inplace = True)
+
+    # actually, I'm not assuming this, and I am dropping the heatingsystem col
+    df.drop(columns = 'heatingorsystemdesc', inplace = True)
     
     # replace nulls with median values for select columns
     df.lotsizesquarefeet.fillna(7313, inplace = True)
+    df.buildingqualitytypeid.fillna(6.0, inplace = True)
 
     # Columns to look for outliers
     df = df[df.taxvaluedollarcnt < 5_000_000]
-    df[df.calculatedfinishedsquarefeet < 8000]
+    df = df[df.calculatedfinishedsquarefeet < 8000]
     
     # Just to be sure we caught all nulls, drop them here
     df = df.dropna()
     
     return df
-
-def min_max_scaler(train, valid, test):
-    '''
-    Uses the train & test datasets created by the split_my_data function
-    Returns 3 items: mm_scaler, train_scaled_mm, test_scaled_mm
-    This is a linear transformation. Values will lie between 0 and 1
-    '''
-    num_vars = list(train.select_dtypes('number').columns)
-    scaler = MinMaxScaler(copy=True, feature_range=(0,1))
-    train[num_vars] = scaler.fit_transform(train[num_vars])
-    valid[num_vars] = scaler.transform(valid[num_vars])
-    test[num_vars] = scaler.transform(test[num_vars])
-    return scaler, train, valid, test
-
-def outlier_function(df, cols, k):
-	#function to detect and handle oulier using IQR rule
-    for col in df[cols]:
-        q1 = df.annual_income.quantile(0.25)
-        q3 = df.annual_income.quantile(0.75)
-        iqr = q3 - q1
-        upper_bound =  q3 + k * iqr
-        lower_bound =  q1 - k * iqr     
-        df = df[(df[col] < upper_bound) & (df[col] > lower_bound)]
-    return df
-
-def get_mall_customers(sql):
-	    url = get_db_url('mall_customers')
-	    mall_df = pd.read_sql(sql, url, index_col='customer_id')
-	    return mall_df
-
-def wrangle_mall_df():
-    
-    # acquire data
-    sql = 'select * from customers'
-
-
-    # acquire data from SQL server
-    mall_df = get_mall_customers(sql)
-    
-    # handle outliers
-    mall_df = outlier_function(mall_df, ['age', 'spending_score', 'annual_income'], 1.5)
-    
-    # get dummy for gender column
-    dummy_df = pd.get_dummies(mall_df.gender, drop_first=True)
-    mall_df = pd.concat([mall_df, dummy_df], axis=1).drop(columns = ['gender'])
-    mall_df.rename(columns= {'Male': 'is_male'}, inplace = True)
-    # return mall_df
-
-    # split the data in train, validate and test
-    train, test = train_test_split(mall_df, train_size = 0.8, random_state = 123)
-    train, validate = train_test_split(train, train_size = 0.75, random_state = 123)
-    
-    return min_max_scaler, train, validate, test
