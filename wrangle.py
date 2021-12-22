@@ -203,7 +203,10 @@ def clean_and_prep_data(df):
     df['sq_ft_per_bathroom'] = df.sq_ft / df.bathrooms
     # dropping the 'yearbuilt' column now that i have the age
     df['sq_ft_per_bedroom'] = df.sq_ft / df.bedrooms
+    df['sq_ft_per_room'] = df.sq_ft / df.rooms
     df = df.drop(columns=['yearbuilt'])
+    # there were a few incorrect zip codes, <10, so i drop them here
+    df = df[df.regionidzip < 100_000]
 # Missing values: there were only something around 200 missing values in the data; thus, I have dropped them 
 #  due to their relative scarcity.  By removing outliers, several thousand rows were dropped.
     return df
