@@ -192,6 +192,7 @@ def clean_and_prep_data(df):
 
 
     cols = ['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'tax_amount']
+
     #removing outliers--see the function elsewhere in this file
     df = remove_outliers(df, 1.5, cols)
     # accessing datetime info so as to create an 'age' variable
@@ -204,9 +205,13 @@ def clean_and_prep_data(df):
     # dropping the 'yearbuilt' column now that i have the age
     df['sq_ft_per_bedroom'] = df.sq_ft / df.bedrooms
     df['sq_ft_per_room'] = df.sq_ft / df.rooms
+    df['has_half_bath'] = (df.bathrooms - df.full_baths) != 0
+    df['age_bin'] = pd.cut(df.age, [0, 20, 40, 60,80,100,120,200])
     df = df.drop(columns=['yearbuilt'])
     # there were a few incorrect zip codes, <10, so i drop them here
-    df = df[df.regionidzip < 100_000]
+    df = df[df.zip < 100_000]
+    # dropping transaction date, don't think we need this
+    df = df.drop(columns='transactiondate')
 # Missing values: there were only something around 200 missing values in the data; thus, I have dropped them 
 #  due to their relative scarcity.  By removing outliers, several thousand rows were dropped.
     return df
