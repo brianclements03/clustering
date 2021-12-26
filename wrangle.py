@@ -182,6 +182,47 @@ def clean_and_prep_data(df):
     to get it ready to be split in the next step.
     
     '''
+    # Restrict df to only properties that meet single unit use criteria
+    single_use = [261, 262, 263, 264, 266, 268, 273, 276, 279]
+    df = df[df.propertylandusetypeid.isin(single_use)]
+    
+    # Restrict df to only those properties with at least 1 bath & bed and 350 sqft area
+    df = df[(df.bedroomcnt > 0) & (df.bathroomcnt > 0) & ((df.unitcnt<=1)|df.unitcnt.isnull())\
+            & (df.calculatedfinishedsquarefeet>350)]
+
+        # Add column for counties
+    df['county'] = np.where(df.fips == 6037, 'Los_Angeles',
+                           np.where(df.fips == 6059, 'Orange', 
+                                   'Ventura'))    
+    # drop columns not needed
+    df = remove_columns(df, ['Unnamed: 0','id',
+       'calculatedbathnbr', 'finishedsquarefeet12', 'heatingorsystemtypeid'
+       ,'propertycountylandusecode', 'propertylandusetypeid','propertyzoningdesc'
+       ,'regionidcounty', 
+        'censustractandblock', 'propertylandusedesc', 'unitcnt', 'fips'])
+
+
+#     replace nulls in unitcnt with 1
+#     df.unitcnt.fillna(1, inplace = True)
+    
+    # assume that since this is Southern CA, null means 'None' for heating system
+#     df.heatingorsystemdesc.fillna('None', inplace = True)
+
+    # actually, I'm not assuming this, and I am dropping the heatingsystem col
+    df.drop(columns = 'heatingorsystemdesc', inplace = True)
+    
+    # replace nulls with median values for select columns
+    df.lotsizesquarefeet.fillna(7313, inplace = True)
+    df.buildingqualitytypeid.fillna(6.0, inplace = True)
+
+    # Columns to look for outliers
+    df = df[df.taxvaluedollarcnt < 5_000_000]
+    df = df[df.calculatedfinishedsquarefeet < 8000]
+    
+    # Just to be sure we caught all nulls, drop them here
+    df = df.dropna()
+
+
         # renaming columns for ease of reading
     df = df.rename(columns={'bedroomcnt':'bedrooms','bathroomcnt':'bathrooms'
     ,'buildingqualitytypeid':'condition','calculatedfinishedsquarefeet':'sq_ft'
@@ -190,11 +231,12 @@ def clean_and_prep_data(df):
     ,'taxvaluedollarcnt':'tax_value','taxamount':'tax_amount','fips':'county'
     ,'assessmentyear':'year_assessed','landtaxvaluedollarcnt':'land_value'})
 
-
     cols = ['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'tax_amount']
 
     #removing outliers--see the function elsewhere in this file
     df = remove_outliers(df, 1.5, cols)
+        # Handle missing values i.e. drop columns and rows based on a threshold
+    df = handle_missing_values(df,.7,.5)
     # accessing datetime info so as to create an 'age' variable
     from datetime import date
     df.yearbuilt =  df.yearbuilt.astype(int)
@@ -242,7 +284,7 @@ def split_zillow(df):
     return train, validate, test, X_train, y_train, X_validate, y_validate, X_test, y_test
 
 
-def encode_zillow(df):
+def encode_zillow(df, cols_to_dummy):
     '''
     This is encoding a few of the zillow columns for later modelling; it drops the original column 
     once it has been encoded
@@ -250,14 +292,11 @@ def encode_zillow(df):
     '''
     # ordinal encoder? sklearn.OrdinalEncoder
 
-    cols_to_dummy = df['county']
+    # I had originally put the columns to be dummied inside the function. They are now in the inputs
+    # cols_to_dummy = df['county']
     dummy_df = pd.get_dummies(cols_to_dummy, dummy_na=False, drop_first=False)
     df = pd.concat([df, dummy_df], axis = 1)
-    #df.columns = df.columns.astype(str)
-    # I ended up renaming counties in an above function; the other encoded cols are renamed here:
-    #df.rename(columns={'6037.0':'LA', '6059.0': 'Orange', '6111.0':'Ventura'}, inplace=True)
-    # I have commented out the following code bc i think i might want to have the county column for exploration
-    #df = df.drop(columns='county')
+
     return df
 
 
@@ -309,51 +348,14 @@ def remove_columns(df, cols_to_remove):
 
 def wrangle_zillow():
     '''
-    This function reads in the zillow_df.csv file and wrangles it.
+    This function accesses (or creates) the zillow_df.csv file and wrangles it (clean, prep, split, scale)
     '''
-    df = pd.read_csv('zillow_df.csv')
-    
-    # Restrict df to only properties that meet single unit use criteria
-    single_use = [261, 262, 263, 264, 266, 268, 273, 276, 279]
-    df = df[df.propertylandusetypeid.isin(single_use)]
-    
-    # Restrict df to only those properties with at least 1 bath & bed and 350 sqft area
-    df = df[(df.bedroomcnt > 0) & (df.bathroomcnt > 0) & ((df.unitcnt<=1)|df.unitcnt.isnull())\
-            & (df.calculatedfinishedsquarefeet>350)]
+    df = get_zillow_data()
 
-    # Handle missing values i.e. drop columns and rows based on a threshold
-    df = handle_missing_values(df,.7,.5)
+    df = clean_and_prep_data(df)
     
-    # Add column for counties
-    df['county'] = np.where(df.fips == 6037, 'Los_Angeles',
-                           np.where(df.fips == 6059, 'Orange', 
-                                   'Ventura'))    
-    # drop columns not needed
-    df = remove_columns(df, ['Unnamed: 0','id',
-       'calculatedbathnbr', 'finishedsquarefeet12', 'heatingorsystemtypeid'
-       ,'propertycountylandusecode', 'propertylandusetypeid','propertyzoningdesc'
-       ,'regionidcounty', 
-        'censustractandblock', 'propertylandusedesc', 'unitcnt', 'fips'])
+    df = encode_zillow(df, ['county'])
 
+    
 
-#     replace nulls in unitcnt with 1
-#     df.unitcnt.fillna(1, inplace = True)
-    
-    # assume that since this is Southern CA, null means 'None' for heating system
-#     df.heatingorsystemdesc.fillna('None', inplace = True)
-
-    # actually, I'm not assuming this, and I am dropping the heatingsystem col
-    df.drop(columns = 'heatingorsystemdesc', inplace = True)
-    
-    # replace nulls with median values for select columns
-    df.lotsizesquarefeet.fillna(7313, inplace = True)
-    df.buildingqualitytypeid.fillna(6.0, inplace = True)
-
-    # Columns to look for outliers
-    df = df[df.taxvaluedollarcnt < 5_000_000]
-    df = df[df.calculatedfinishedsquarefeet < 8000]
-    
-    # Just to be sure we caught all nulls, drop them here
-    df = df.dropna()
-    
     return df
