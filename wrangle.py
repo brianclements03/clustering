@@ -16,6 +16,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.impute import SimpleImputer
 import scipy
 from scipy import stats
+from sklearn.preprocessing import MinMaxScaler
 
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.tree import export_graphviz
@@ -195,11 +196,11 @@ def clean_and_prep_data(df):
                            np.where(df.fips == 6059, 'Orange', 
                                    'Ventura'))    
     # drop columns not needed
-    df = remove_columns(df, ['Unnamed: 0','id',
+    df = remove_columns(df, ['id',
        'calculatedbathnbr', 'finishedsquarefeet12', 'heatingorsystemtypeid'
        ,'propertycountylandusecode', 'propertylandusetypeid','propertyzoningdesc'
-       ,'regionidcounty', 
-        'censustractandblock', 'propertylandusedesc', 'unitcnt', 'fips'])
+       ,'regionidcounty', 'transactiondate',
+        'censustractandblock', 'propertylandusedesc', 'unitcnt'])
 
 
 #     replace nulls in unitcnt with 1
@@ -218,10 +219,6 @@ def clean_and_prep_data(df):
     # Columns to look for outliers
     df = df[df.taxvaluedollarcnt < 5_000_000]
     df = df[df.calculatedfinishedsquarefeet < 8000]
-    
-    # Just to be sure we caught all nulls, drop them here
-    df = df.dropna()
-
 
         # renaming columns for ease of reading
     df = df.rename(columns={'bedroomcnt':'bedrooms','bathroomcnt':'bathrooms'
@@ -239,7 +236,7 @@ def clean_and_prep_data(df):
     df = handle_missing_values(df,.7,.5)
     # accessing datetime info so as to create an 'age' variable
     from datetime import date
-    df.yearbuilt =  df.yearbuilt.astype(int)
+    df.yearbuilt =  df.yearbuilt#.astype(int)
     year = date.today().year
     df['age'] = year - df.yearbuilt
     # making a feature called bathrooms_per_sq_ft
@@ -252,10 +249,10 @@ def clean_and_prep_data(df):
     df = df.drop(columns=['yearbuilt'])
     # there were a few incorrect zip codes, <10, so i drop them here
     df = df[df.zip < 100_000]
-    # dropping transaction date, don't think we need this
-    df = df.drop(columns='transactiondate')
-# Missing values: there were only something around 200 missing values in the data; thus, I have dropped them 
-#  due to their relative scarcity.  By removing outliers, several thousand rows were dropped.
+
+    # Just to be sure we caught all nulls, drop them here
+    df = df.dropna()
+
     return df
 
 
@@ -272,14 +269,14 @@ def split_zillow(df):
 
     # return train, validate, test
 
-    X_train = train.drop(columns=['tax_value'])
-    y_train = pd.DataFrame(train.tax_value, columns=['tax_value'])
+    X_train = train.drop(columns=['logerror'])
+    y_train = pd.DataFrame(train.tax_value, columns=['logerror'])
 
-    X_validate = validate.drop(columns=['tax_value'])
-    y_validate = pd.DataFrame(validate.tax_value, columns=['tax_value'])
+    X_validate = validate.drop(columns=['logerror'])
+    y_validate = pd.DataFrame(validate.tax_value, columns=['logerror'])
 
-    X_test = test.drop(columns=['tax_value'])
-    y_test = pd.DataFrame(test.tax_value, columns=['tax_value'])
+    X_test = test.drop(columns=['logerror'])
+    y_test = pd.DataFrame(test.tax_value, columns=['logerror'])
 
     return train, validate, test, X_train, y_train, X_validate, y_validate, X_test, y_test
 
@@ -306,37 +303,41 @@ def scale_zillow(train, validate, test):
     Takes in the zillow dataframe and returns SCALED train, validate, test subset dataframes
     '''
     # SCALE
-    # 1. create the object
-    scaler = sklearn.preprocessing.MinMaxScaler()
-    # 2. fit the object
-    scaler.fit(train[['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom',
-       'LA', 'Orange', 'Ventura']])
-    # 3. use the object. Scale all columns for now
-    train_scaled =  scaler.transform(train[['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom',
-       'LA', 'Orange', 'Ventura']])
-    train_scaled = pd.DataFrame(train_scaled, columns=['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom',
-       'LA', 'Orange', 'Ventura'])
+    num_vars = list(train.select_dtypes('number').columns)
+    scaler = MinMaxScaler(copy=True, feature_range=(0,1))
+    train_scaled[num_vars] = scaler.fit_transform(train[num_vars])
+    validate_scaled[num_vars] = scaler.transform(validate[num_vars])
+    test_scaled[num_vars] = scaler.transform(test[num_vars])
 
-    validate_scaled =  scaler.transform(validate[['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom',
-       'LA', 'Orange', 'Ventura']])
-    validate_scaled = pd.DataFrame(validate_scaled, columns=['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom',
-       'LA', 'Orange', 'Ventura'])
 
-    test_scaled =  scaler.transform(test[['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom',
-       'LA', 'Orange', 'Ventura']])
-    test_scaled = pd.DataFrame(test_scaled, columns=['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom',
-       'LA', 'Orange', 'Ventura'])
+
+
+
+
+    # # 1. create the object
+    # scaler = sklearn.preprocessing.MinMaxScaler()
+    # # 2. fit the object
+    # scaler.fit(train['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom'])
+    # # 3. use the object. Scale all columns for now
+    # train_scaled =  scaler.transform(train['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom'])
+    # train_scaled = pd.DataFrame(train_scaled, columns=['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom'])
+
+    # validate_scaled =  scaler.transform(validate['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom'])
+    # validate_scaled = pd.DataFrame(validate_scaled, columns=['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom'])
+
+    # test_scaled =  scaler.transform(test['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom'])
+    # test_scaled = pd.DataFrame(test_scaled, columns=['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom'])
 
     # 4. Divide into x/y
 
-    X_train_scaled = train_scaled.drop(columns=['tax_value'])
-    y_train_scaled = pd.DataFrame(train_scaled.tax_value, columns=['tax_value'])
+    X_train_scaled = train_scaled.drop(columns=['logerror'])
+    y_train_scaled = pd.DataFrame(train_scaled.tax_value, columns=['logerror'])
 
-    X_validate_scaled = validate_scaled.drop(columns=['tax_value'])
-    y_validate_scaled = pd.DataFrame(validate_scaled.tax_value, columns=['tax_value'])
+    X_validate_scaled = validate_scaled.drop(columns=['logerror'])
+    y_validate_scaled = pd.DataFrame(validate_scaled.tax_value, columns=['logerror'])
 
-    X_test_scaled = test_scaled.drop(columns=['tax_value'])
-    y_test_scaled = pd.DataFrame(test_scaled.tax_value, columns=['tax_value'])
+    X_test_scaled = test_scaled.drop(columns=['logerror'])
+    y_test_scaled = pd.DataFrame(test_scaled.tax_value, columns=['logerror'])
 
     return train_scaled, X_train_scaled, y_train_scaled, validate_scaled, X_validate_scaled, y_validate_scaled, test_scaled, X_test_scaled, y_test_scaled
 
@@ -356,6 +357,8 @@ def wrangle_zillow():
     
     df = encode_zillow(df, ['county'])
 
-    
+    train, validate, test, X_train, y_train, X_validate, y_validate, X_test, y_test = split_zillow(df)
 
-    return df
+    train_scaled, X_train_scaled, y_train_scaled, validate_scaled, X_validate_scaled, y_validate_scaled, test_scaled, X_test_scaled, y_test_scaled = scale_zillow(train, validate, test)
+
+    return df, train, validate, test, X_train, y_train, X_validate, y_validate, X_test, y_test, train_scaled, X_train_scaled, y_train_scaled, validate_scaled, X_validate_scaled, y_validate_scaled, test_scaled, X_test_scaled, y_test_scaled
