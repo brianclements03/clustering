@@ -270,6 +270,7 @@ def split_zillow(df):
     # return train, validate, test
 
     X_train = train.drop(columns=['logerror'])
+    # I was getting duplicate logerror columns, so the below code resolves by removing the duplicate
     y_train = train.logerror.T.drop_duplicates().T
 
     X_validate = validate.drop(columns=['logerror'])
@@ -281,7 +282,7 @@ def split_zillow(df):
     return train, validate, test, X_train, y_train, X_validate, y_validate, X_test, y_test
 
 
-def encode_zillow(df, cols_to_dummy):
+def encode_zillow(df):
     '''
     This is encoding a few of the zillow columns for later modelling; it drops the original column 
     once it has been encoded
@@ -291,8 +292,9 @@ def encode_zillow(df, cols_to_dummy):
 
     # I had originally put the columns to be dummied inside the function. They are now in the inputs
     # cols_to_dummy = df['county']
-    dummy_df = pd.get_dummies(df, columns=cols_to_dummy, dummy_na=False, drop_first=False)
-    df = pd.concat([df, dummy_df], axis = 1)
+    df = pd.get_dummies(df, columns=['county'], dummy_na=False, drop_first=False)
+    # Not requiring me to concatenate for some reason here.  
+    # df = pd.concat([df, dummy_df], axis = 1)
     df = df.rename(columns={'county_Los_Angeles':'Los_Angeles','county_Orange':'Orange','county_Ventura':'Ventura'})
     #df = df.drop(columns='county')
     return df
@@ -306,7 +308,7 @@ def scale_zillow(train, validate, test):
     num_vars = list(train.select_dtypes('number').columns)
     scaler = MinMaxScaler()
     train[num_vars] = scaler.fit_transform(train[num_vars])
-    validate[num_vars] = scaler.transform(valid[num_vars])
+    validate[num_vars] = scaler.transform(validate[num_vars])
     test[num_vars] = scaler.transform(test[num_vars])
 
     train_scaled = train
@@ -331,13 +333,13 @@ def scale_zillow(train, validate, test):
     # # 4. Divide into x/y
 
     X_train_scaled = train_scaled.drop(columns=['logerror'])
-    y_train_scaled = pd.DataFrame(train_scaled.logerror, columns=['logerror'])
+    y_train_scaled = train_scaled.logerror.T.drop_duplicates().T
 
     X_validate_scaled = validate_scaled.drop(columns=['logerror'])
-    y_validate_scaled = pd.DataFrame(validate_scaled.logerror, columns=['logerror'])
+    y_validate_scaled = validate_scaled.logerror.T.drop_duplicates().T
 
     X_test_scaled = test_scaled.drop(columns=['logerror'])
-    y_test_scaled = pd.DataFrame(test_scaled.logerror, columns=['logerror'])
+    y_test_scaled = test_scaled.logerror.T.drop_duplicates().T
 
     return train_scaled, X_train_scaled, y_train_scaled, validate_scaled, X_validate_scaled, y_validate_scaled, test_scaled, X_test_scaled, y_test_scaled
 
@@ -355,7 +357,7 @@ def wrangle_zillow():
 
     df = clean_and_prep_data(df)
     
-    df = encode_zillow(df, ['county'])
+    df = encode_zillow(df)
 
     train, validate, test, X_train, y_train, X_validate, y_validate, X_test, y_test = split_zillow(df)
 
