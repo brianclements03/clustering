@@ -240,6 +240,7 @@ def clean_and_prep_data(df):
     year = date.today().year
     df['age'] = year - df.yearbuilt
     # making a feature called bathrooms_per_sq_ft
+    df['rooms'] = df.rooms.replace(to_replace=0.0,value=1.0)
     df['sq_ft_per_bathroom'] = df.sq_ft / df.bathrooms
     # dropping the 'yearbuilt' column now that i have the age
     df['sq_ft_per_bedroom'] = df.sq_ft / df.bedrooms
@@ -305,11 +306,11 @@ def scale_zillow(train, validate, test):
     '''
     Takes in the zillow dataframe and returns SCALED train, validate, test subset dataframes
     '''
-    num_vars = list(train.select_dtypes('number').columns)
     scaler = MinMaxScaler()
-    train[num_vars] = scaler.fit_transform(train[num_vars])
-    validate[num_vars] = scaler.transform(validate[num_vars])
-    test[num_vars] = scaler.transform(test[num_vars])
+    scaler.fit(train)
+    train_scaled = scaler.transform(train)
+    validate = scaler.transform(validate)
+    test = scaler.transform(test)
 
     train_scaled = train
     validate_scaled = validate
