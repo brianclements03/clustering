@@ -199,8 +199,8 @@ def clean_and_prep_data(df):
     df = remove_columns(df, ['id',
        'calculatedbathnbr', 'finishedsquarefeet12', 'heatingorsystemtypeid'
        ,'propertycountylandusecode', 'propertylandusetypeid','propertyzoningdesc'
-       ,'regionidcounty', 'transactiondate',
-        'censustractandblock', 'propertylandusedesc', 'unitcnt'])
+       ,'regionidcounty', 'transactiondate', 'fips'
+        ,'censustractandblock', 'propertylandusedesc', 'unitcnt'])
 
 
 #     replace nulls in unitcnt with 1
@@ -225,7 +225,7 @@ def clean_and_prep_data(df):
     ,'buildingqualitytypeid':'condition','calculatedfinishedsquarefeet':'sq_ft'
     ,'fullbathcnt':'full_baths','lotsizesquarefeet':'lot_size', 'rawcensustractandblock':'census_tract'
     ,'regionidcity':'city_id','regionidzip':'zip','roomcnt':'rooms','structuretaxvaluedollarcnt':'structure_value'
-    ,'taxvaluedollarcnt':'tax_value','taxamount':'tax_amount','fips':'county'
+    ,'taxvaluedollarcnt':'tax_value','taxamount':'tax_amount'
     ,'assessmentyear':'year_assessed','landtaxvaluedollarcnt':'land_value'})
 
     cols = ['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'tax_amount']
@@ -270,13 +270,13 @@ def split_zillow(df):
     # return train, validate, test
 
     X_train = train.drop(columns=['logerror'])
-    y_train = pd.DataFrame(train.tax_value, columns=['logerror'])
+    y_train = train.logerror.T.drop_duplicates().T
 
     X_validate = validate.drop(columns=['logerror'])
-    y_validate = pd.DataFrame(validate.tax_value, columns=['logerror'])
+    y_validate = validate.logerror.T.drop_duplicates().T
 
     X_test = test.drop(columns=['logerror'])
-    y_test = pd.DataFrame(test.tax_value, columns=['logerror'])
+    y_test = test.logerror.T.drop_duplicates().T
 
     return train, validate, test, X_train, y_train, X_validate, y_validate, X_test, y_test
 
@@ -291,9 +291,10 @@ def encode_zillow(df, cols_to_dummy):
 
     # I had originally put the columns to be dummied inside the function. They are now in the inputs
     # cols_to_dummy = df['county']
-    dummy_df = pd.get_dummies(cols_to_dummy, dummy_na=False, drop_first=False)
+    dummy_df = pd.get_dummies(df, columns=cols_to_dummy, dummy_na=False, drop_first=False)
     df = pd.concat([df, dummy_df], axis = 1)
-
+    df = df.rename(columns={'county_Los_Angeles':'Los_Angeles','county_Orange':'Orange','county_Ventura':'Ventura'})
+    #df = df.drop(columns='county')
     return df
 
 
@@ -302,18 +303,17 @@ def scale_zillow(train, validate, test):
     '''
     Takes in the zillow dataframe and returns SCALED train, validate, test subset dataframes
     '''
-    # SCALE
     num_vars = list(train.select_dtypes('number').columns)
-    scaler = MinMaxScaler(copy=True, feature_range=(0,1))
-    train_scaled[num_vars] = scaler.fit_transform(train[num_vars])
-    validate_scaled[num_vars] = scaler.transform(validate[num_vars])
-    test_scaled[num_vars] = scaler.transform(test[num_vars])
+    scaler = MinMaxScaler()
+    train[num_vars] = scaler.fit_transform(train[num_vars])
+    validate[num_vars] = scaler.transform(valid[num_vars])
+    test[num_vars] = scaler.transform(test[num_vars])
 
+    train_scaled = train
+    validate_scaled = validate
+    test_scaled = test
 
-
-
-
-
+    # # SCALE
     # # 1. create the object
     # scaler = sklearn.preprocessing.MinMaxScaler()
     # # 2. fit the object
@@ -328,16 +328,16 @@ def scale_zillow(train, validate, test):
     # test_scaled =  scaler.transform(test['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom'])
     # test_scaled = pd.DataFrame(test_scaled, columns=['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom'])
 
-    # 4. Divide into x/y
+    # # 4. Divide into x/y
 
     X_train_scaled = train_scaled.drop(columns=['logerror'])
-    y_train_scaled = pd.DataFrame(train_scaled.tax_value, columns=['logerror'])
+    y_train_scaled = pd.DataFrame(train_scaled.logerror, columns=['logerror'])
 
     X_validate_scaled = validate_scaled.drop(columns=['logerror'])
-    y_validate_scaled = pd.DataFrame(validate_scaled.tax_value, columns=['logerror'])
+    y_validate_scaled = pd.DataFrame(validate_scaled.logerror, columns=['logerror'])
 
     X_test_scaled = test_scaled.drop(columns=['logerror'])
-    y_test_scaled = pd.DataFrame(test_scaled.tax_value, columns=['logerror'])
+    y_test_scaled = pd.DataFrame(test_scaled.logerror, columns=['logerror'])
 
     return train_scaled, X_train_scaled, y_train_scaled, validate_scaled, X_validate_scaled, y_validate_scaled, test_scaled, X_test_scaled, y_test_scaled
 
