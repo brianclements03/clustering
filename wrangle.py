@@ -306,32 +306,54 @@ def scale_zillow(train, validate, test):
     '''
     Takes in the zillow dataframe and returns SCALED train, validate, test subset dataframes
     '''
+    # Create scaler; fit to train; transform onto different 
     scaler = MinMaxScaler()
-    scaler.fit(train)
-    train_scaled = scaler.transform(train)
-    validate = scaler.transform(validate)
-    test = scaler.transform(test)
+    scaler.fit(train[['parcelid', 'bathrooms', 'bedrooms', 'condition', 'sq_ft', 'full_baths',
+       'latitude', 'longitude', 'lot_size', 'census_tract', 'city_id', 'zip',
+       'rooms', 'structure_value', 'tax_value', 'year_assessed', 'land_value',
+       'tax_amount', 'logerror', 'age', 'sq_ft_per_bathroom',
+       'sq_ft_per_bedroom', 'sq_ft_per_room', 'has_half_bath',
+       'Los_Angeles', 'Orange', 'Ventura']])
+    train_scaled = scaler.transform(train[['parcelid', 'bathrooms', 'bedrooms', 'condition', 'sq_ft', 'full_baths',
+       'latitude', 'longitude', 'lot_size', 'census_tract', 'city_id', 'zip',
+       'rooms', 'structure_value', 'tax_value', 'year_assessed', 'land_value',
+       'tax_amount', 'logerror', 'age', 'sq_ft_per_bathroom',
+       'sq_ft_per_bedroom', 'sq_ft_per_room', 'has_half_bath',
+       'Los_Angeles', 'Orange', 'Ventura']])
+    validate_scaled = scaler.transform(validate[['parcelid', 'bathrooms', 'bedrooms', 'condition', 'sq_ft', 'full_baths',
+       'latitude', 'longitude', 'lot_size', 'census_tract', 'city_id', 'zip',
+       'rooms', 'structure_value', 'tax_value', 'year_assessed', 'land_value',
+       'tax_amount', 'logerror', 'age', 'sq_ft_per_bathroom',
+       'sq_ft_per_bedroom', 'sq_ft_per_room', 'has_half_bath',
+       'Los_Angeles', 'Orange', 'Ventura']])
+    test_scaled = scaler.transform(test[['parcelid', 'bathrooms', 'bedrooms', 'condition', 'sq_ft', 'full_baths',
+       'latitude', 'longitude', 'lot_size', 'census_tract', 'city_id', 'zip',
+       'rooms', 'structure_value', 'tax_value', 'year_assessed', 'land_value',
+       'tax_amount', 'logerror', 'age', 'sq_ft_per_bathroom',
+       'sq_ft_per_bedroom', 'sq_ft_per_room', 'has_half_bath',
+       'Los_Angeles', 'Orange', 'Ventura']])
 
-    train_scaled = train
-    validate_scaled = validate
-    test_scaled = test
+    # Turn the datasets into pandas dataframes for further manipulation:
+    train_scaled = pd.DataFrame(data=train_scaled, columns=['parcelid', 'bathrooms', 'bedrooms', 'condition', 'sq_ft', 'full_baths',
+       'latitude', 'longitude', 'lot_size', 'census_tract', 'city_id', 'zip',
+       'rooms', 'structure_value', 'tax_value', 'year_assessed', 'land_value',
+       'tax_amount', 'logerror', 'age', 'sq_ft_per_bathroom',
+       'sq_ft_per_bedroom', 'sq_ft_per_room', 'has_half_bath',
+       'Los_Angeles', 'Orange', 'Ventura'])
+    validate_scaled = pd.DataFrame(data=validate_scaled, columns=['parcelid', 'bathrooms', 'bedrooms', 'condition', 'sq_ft', 'full_baths',
+       'latitude', 'longitude', 'lot_size', 'census_tract', 'city_id', 'zip',
+       'rooms', 'structure_value', 'tax_value', 'year_assessed', 'land_value',
+       'tax_amount', 'logerror', 'age', 'sq_ft_per_bathroom',
+       'sq_ft_per_bedroom', 'sq_ft_per_room', 'has_half_bath',
+       'Los_Angeles', 'Orange', 'Ventura'])
+    test_scaled = pd.DataFrame(data=test_scaled, columns=['parcelid', 'bathrooms', 'bedrooms', 'condition', 'sq_ft', 'full_baths',
+       'latitude', 'longitude', 'lot_size', 'census_tract', 'city_id', 'zip',
+       'rooms', 'structure_value', 'tax_value', 'year_assessed', 'land_value',
+       'tax_amount', 'logerror', 'age', 'sq_ft_per_bathroom',
+       'sq_ft_per_bedroom', 'sq_ft_per_room', 'has_half_bath',
+       'Los_Angeles', 'Orange', 'Ventura'])
 
-    # # SCALE
-    # # 1. create the object
-    # scaler = sklearn.preprocessing.MinMaxScaler()
-    # # 2. fit the object
-    # scaler.fit(train['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom'])
-    # # 3. use the object. Scale all columns for now
-    # train_scaled =  scaler.transform(train['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom'])
-    # train_scaled = pd.DataFrame(train_scaled, columns=['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom'])
-
-    # validate_scaled =  scaler.transform(validate['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom'])
-    # validate_scaled = pd.DataFrame(validate_scaled, columns=['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom'])
-
-    # test_scaled =  scaler.transform(test['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom'])
-    # test_scaled = pd.DataFrame(test_scaled, columns=['bedrooms', 'bathrooms', 'sq_ft', 'tax_value', 'age','sq_ft_per_bathroom'])
-
-    # # 4. Divide into x/y
+    # Divide into x/y
 
     X_train_scaled = train_scaled.drop(columns=['logerror'])
     y_train_scaled = train_scaled.logerror.T.drop_duplicates().T
