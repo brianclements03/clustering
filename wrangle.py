@@ -247,7 +247,7 @@ def clean_and_prep_data(df):
     df['sq_ft_per_room'] = df.sq_ft / df.rooms
     df['has_half_bath'] = (df.bathrooms - df.full_baths) != 0
     df['has_half_bath'] = df.has_half_bath.astype(int)
-    df['age_bin'] = pd.cut(df.age, [0, 20, 40, 60,80,100,120,200])
+    df['age_bin'] = pd.cut(df.age, [0,40,80,120,200])
     df = df.drop(columns=['yearbuilt'])
     # there were a few incorrect zip codes, <10, so i drop them here
     df = df[df.zip < 100_000]
