@@ -240,12 +240,13 @@ def clean_and_prep_data(df):
     year = date.today().year
     df['age'] = year - df.yearbuilt
     # making a feature called bathrooms_per_sq_ft
-    df['rooms'] = df.rooms.replace(to_replace=0.0,value=1.0)
+    df['rooms'] = df.rooms.replace(to_replace=0.0,value=df.rooms.mean())
     df['sq_ft_per_bathroom'] = df.sq_ft / df.bathrooms
     # dropping the 'yearbuilt' column now that i have the age
     df['sq_ft_per_bedroom'] = df.sq_ft / df.bedrooms
     df['sq_ft_per_room'] = df.sq_ft / df.rooms
     df['has_half_bath'] = (df.bathrooms - df.full_baths) != 0
+    df['has_half_bath'] = df.has_half_bath.astype(int)
     df['age_bin'] = pd.cut(df.age, [0, 20, 40, 60,80,100,120,200])
     df = df.drop(columns=['yearbuilt'])
     # there were a few incorrect zip codes, <10, so i drop them here
@@ -293,9 +294,12 @@ def encode_zillow(df):
 
     # I had originally put the columns to be dummied inside the function. They are now in the inputs
     # cols_to_dummy = df['county']
-    df = pd.get_dummies(df, columns=['county'], dummy_na=False, drop_first=False)
+    # df = pd.get_dummies(df, columns=['county'], dummy_na=False, drop_first=False)
+        
+    dummy_df = pd.get_dummies(df.county, dummy_na=False, drop_first=False)
+
     # Not requiring me to concatenate for some reason here.  
-    # df = pd.concat([df, dummy_df], axis = 1)
+    df = pd.concat([df, dummy_df], axis = 1)
     df = df.rename(columns={'county_Los_Angeles':'Los_Angeles','county_Orange':'Orange','county_Ventura':'Ventura'})
     #df = df.drop(columns='county')
     return df
