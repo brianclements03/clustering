@@ -140,3 +140,60 @@ def viz_iris3(iris, kmeans):
     iris.drop(columns = ['cen_x', 'cen_y', 'c'], inplace = True)
     plt.tight_layout()
     plt.show()
+    
+    
+    
+    
+def bonus_viz():
+    import random
+
+    # create data
+    rnorm = np.random.randn
+    x1 = rnorm(800) * 10  
+    y1 = np.concatenate([rnorm(400), rnorm(400) + 6])
+    df = pd.DataFrame()
+    df['x'] = x1
+    df['y'] = y1
+
+    # scale the data
+    from sklearn.preprocessing import StandardScaler
+    scaler = StandardScaler()
+    cols = ['x', 'y']
+    df_scaled = df.copy()
+    df_scaled[cols] = scaler.fit_transform(df[cols])
+
+    X = df[cols]
+    X_scaled = df_scaled[cols]
+
+
+    # create subplots
+    fig, axes = plt.subplots(3, 1, figsize=(6,10))
+
+    #plot on first axes
+    axes[0].scatter(x1, y1)
+    axes[0].set_title('Raw unscaled data')
+
+
+    # Implement Kmeans on unscaled data and plot on 2nd axes
+    km = KMeans(2, random_state = 123)
+
+    clusters = km.fit_predict(X)
+    centroids = pd.DataFrame(km.cluster_centers_, columns = ['x', 'y'])
+
+    axes[1].scatter(df.x, df.y, c=clusters, cmap='bwr')
+    centroids.plot.scatter(x='x', y= 'y', ax=axes[1], marker='o', alpha = 0.3, s=400, c='k')
+    axes[1].set_title('Unscaled K-means')
+
+
+    # Implement Kmeans on scaled data and plot on 3rd axes
+
+    clusters = km.fit_predict(X_scaled)
+    centroids = pd.DataFrame(km.cluster_centers_, columns = ['x', 'y'])
+
+    axes[2].scatter(df_scaled.x, df_scaled.y, c=clusters, cmap='bwr')
+    centroids.plot.scatter(x= 'x', y= 'y', ax=axes[2], marker='o', alpha = 0.3, s=400, c='k')
+    axes[2].set_title('Scaled K-means')
+    # axes[2].set_xlim(-30,30)
+    # axes[2].set_ylim(-4,6)
+
+    plt.tight_layout()
