@@ -16,8 +16,9 @@ def make_blob():
     return plt.show()
 
 def viz_iris(iris, kmeans):
-    
-    centroids = np.array(iris.groupby('cluster')['petal_length', 'sepal_length'].mean())
+#     the old definition for centroids is commented out. this syntax became deprecated in a later version of python/np/pd
+#     centroids = np.array(iris.groupby('cluster')['petal_length', 'sepal_length'].mean())
+    centroids = np.array(iris.groupby(iris['cluster'])[['petal_length','sepal_length']].mean())
     cen_x = [i[0] for i in centroids]
     cen_y = [i[1] for i in centroids]
     # cen_x = [i[0] for i in kmeans.cluster_centers_]
@@ -58,8 +59,9 @@ def viz_iris(iris, kmeans):
     
     
 def viz_iris2(iris, kmeans):
-    
-    centroids = np.array(iris.groupby('cluster')['petal_length', 'petal_width'].mean())
+#     as above, updating the definition of centroids
+#     centroids = np.array(iris.groupby('cluster')['petal_length', 'petal_width'].mean())
+    centroids = np.array(iris.groupby(iris['cluster'])[['petal_length','sepal_length']].mean())
     cen_x = [i[0] for i in centroids]
     cen_y = [i[1] for i in centroids]
     # cen_x = [i[0] for i in kmeans.cluster_centers_]
@@ -102,7 +104,7 @@ def viz_iris2(iris, kmeans):
 # this doesn't work for the way i've set up the third example bc i'm using 3 features
 def viz_iris3(iris, kmeans):
     
-    centroids = np.array(iris.groupby('cluster')['petal_length', 'sepal_length'].mean())
+    centroids = np.array(iris.groupby(iris['cluster'])[['petal_length', 'sepal_length']].mean())
     cen_x = [i[0] for i in centroids]
     cen_y = [i[1] for i in centroids]
     # cen_x = [i[0] for i in kmeans.cluster_centers_]
